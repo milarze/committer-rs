@@ -10,7 +10,6 @@ impl GitRepo {
     }
 
     pub fn get_staged_diff(&self) -> Result<String, git2::Error> {
-        println!("Getting staged diff");
         let index = self.repo.index()?;
 
         let head_tree: Option<Tree> = match self.repo.head() {
@@ -23,7 +22,6 @@ impl GitRepo {
                 if e.code() == git2::ErrorCode::UnbornBranch
                     || e.code() == git2::ErrorCode::NotFound
                 {
-                    println!("No commits yet");
                     None
                 } else {
                     return Err(e);
