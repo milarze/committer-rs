@@ -1,6 +1,9 @@
 use tokio::runtime::Builder;
 
-use crate::{config::read_config, git::GitRepo};
+use crate::{
+    config::read_config,
+    git::{commit, GitRepo},
+};
 
 pub fn configure() {
     println!("Configuring stuff");
@@ -9,9 +12,8 @@ pub fn configure() {
 pub fn generate() {
     println!("Generating commit message");
     let config = read_config();
-    let diffs = GitRepo::new()
-        .get_staged_diff()
-        .expect("Unable to read git diff");
+    let repo = GitRepo::new();
+    let diffs = repo.get_staged_diff().expect("Unable to read git diff");
     if diffs.is_empty() {
         panic!("Diff is empty. Have you staged your changes?");
     }
@@ -22,8 +24,17 @@ pub fn generate() {
         .build()
         .unwrap();
     let handle = runtime.spawn(crate::commit_generator::generate_commit(
-        diffs, None, config,
+        diffs.clone(),
+        None,
+        config,
     ));
-    let result = runtime.block_on(handle).expect("Unable to make API call");
-    println!("Result: {:?}", result);
+    let inference_result = runtime.block_on(handle).expect("Unable to make API call");
+    if inference_result.is_err() {
+        panic!("Error generating commit message: {:?}", inference_result);
+    }
+    let commit_message = inference_result.unwrap();
+    if commit_message.is_empty() {
+        panic!("Generated commit message is empty");
+    }
+    commit(&repo, commit_message, diffs).expect("Unable to commit");
 }
