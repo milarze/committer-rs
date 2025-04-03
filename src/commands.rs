@@ -23,7 +23,7 @@ pub fn generate() {
         .enable_all()
         .build()
         .unwrap();
-    let handle = runtime.spawn(crate::commit_generator::generate_commit(
+    let handle = runtime.spawn(crate::commit_generator::generate_commit_message(
         diffs.clone(),
         None,
         config,

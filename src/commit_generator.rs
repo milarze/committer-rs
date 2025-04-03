@@ -1,4 +1,4 @@
-pub async fn generate_commit(
+pub async fn generate_commit_message(
     diff: String,
     context: Option<String>,
     config: crate::config::Config,
@@ -28,6 +28,5 @@ pub async fn generate_commit(
             _ => "".to_string(),
         })
         .collect();
-    println!("Completion: {}", content);
     Ok(content)
-} 
+}
