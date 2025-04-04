@@ -36,5 +36,5 @@ pub fn generate() {
     if commit_message.is_empty() {
         panic!("Generated commit message is empty");
     }
-    commit(&repo, commit_message, diffs).expect("Unable to commit");
+    commit(commit_message, None).expect("Unable to commit");
 }
