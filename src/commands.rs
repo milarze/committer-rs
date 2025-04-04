@@ -18,6 +18,7 @@ pub fn generate() {
         panic!("Diff is empty. Have you staged your changes?");
     }
 
+    let start_time = std::time::Instant::now();
     let runtime = Builder::new_multi_thread()
         .worker_threads(1)
         .enable_all()
@@ -32,6 +33,8 @@ pub fn generate() {
     if inference_result.is_err() {
         panic!("Error generating commit message: {:?}", inference_result);
     }
+    let time_taken = start_time.elapsed();
+    println!("Time taken to generate inference: {:?}", time_taken);
     let commit_message = inference_result.unwrap();
     if commit_message.is_empty() {
         panic!("Generated commit message is empty");
