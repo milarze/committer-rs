@@ -1,3 +1,5 @@
+use std::process;
+
 use tokio::runtime::Builder;
 
 use crate::{
@@ -10,12 +12,12 @@ pub fn configure() {
 }
 
 pub fn generate() {
-    println!("Generating commit message");
     let config = read_config();
     let repo = GitRepo::new();
     let diffs = repo.get_staged_diff().expect("Unable to read git diff");
     if diffs.is_empty() {
-        panic!("Diff is empty. Have you staged your changes?");
+        eprintln!("Diff is empty. Have you staged your changes?");
+        process::exit(1);
     }
 
     let start_time = std::time::Instant::now();
@@ -29,15 +31,21 @@ pub fn generate() {
         None,
         config,
     ));
-    let inference_result = runtime.block_on(handle).expect("Unable to make API call");
-    if inference_result.is_err() {
-        panic!("Error generating commit message: {:?}", inference_result);
-    }
+    let inference_result = match runtime.block_on(handle) {
+        Ok(result) => result,
+        Err(e) => {
+            eprintln!("Error generating commit message: {:?}", e);
+            process::exit(1);
+        }
+    };
     let time_taken = start_time.elapsed();
     println!("Time taken to generate inference: {:?}", time_taken);
-    let commit_message = inference_result.unwrap();
-    if commit_message.is_empty() {
-        panic!("Generated commit message is empty");
-    }
+    let commit_message = match inference_result {
+        Ok(message) => message,
+        Err(e) => {
+            eprintln!("Error generating commit message: {:?}", e);
+            process::exit(1);
+        }
+    };
     commit(commit_message, None).expect("Unable to commit");
 }
