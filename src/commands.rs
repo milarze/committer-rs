@@ -47,5 +47,13 @@ pub fn generate() {
             process::exit(1);
         }
     };
-    commit(commit_message, None).expect("Unable to commit");
+    match commit(commit_message, None) {
+        Ok(_) => {
+            println!("Commit successful");
+        }
+        Err(e) => {
+            eprintln!("Error committing changes: {:?}", e);
+            process::exit(1);
+        }
+    }
 }
