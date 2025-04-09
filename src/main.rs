@@ -79,7 +79,6 @@ fn setup_profiling() {
         }
 
         fn on_close(&self, id: span::Id, ctx: tracing_subscriber::layer::Context<'_, S>) {
-            // Get the span name
             let span = match ctx.span(&id) {
                 Some(span) => span,
                 None => return,
@@ -87,7 +86,6 @@ fn setup_profiling() {
 
             let span_name = span.name().to_string();
 
-            // Get the start time from our HashMap
             let key = format!("{}-{:?}", span_name, id);
             let duration = {
                 let timestamps = SPAN_TIMESTAMPS.lock().unwrap();
@@ -99,7 +97,6 @@ fn setup_profiling() {
                 }
             };
 
-            // Format and write to CSV
             let timestamp = Local::now().format("%Y-%m-%d %H:%M:%S%.3f").to_string();
             let csv_line = format!("{},{},{}\n", timestamp, span_name, duration.as_micros());
 
@@ -109,17 +106,15 @@ fn setup_profiling() {
                 .append(true)
                 .open(&self.log_file_path)
             {
-                Ok(mut file) => {
-                    if let Err(e) = file.write_all(csv_line.as_bytes()) {
-                        eprintln!("Failed to write to log file: {}", e);
-                    } else {
-                        eprintln!("Wrote to CSV: {}", csv_line.trim());
-                    }
-                }
+                // Write to file, but ignore errors.
+                Ok(mut file) => file
+                    .write_all(csv_line.as_bytes())
+                    .ok()
+                    .or(Some(()))
+                    .unwrap(),
                 Err(e) => eprintln!("Failed to open log file: {}", e),
             }
 
-            // Clean up the entry
             let mut timestamps = SPAN_TIMESTAMPS.lock().unwrap();
             timestamps.remove(&key);
         }
