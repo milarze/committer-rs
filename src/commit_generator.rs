@@ -11,7 +11,7 @@ pub async fn generate_commit_message(
     let prompt = crate::prompt_generator::generate_prompt(diff.clone(), config.scopes(), context);
     let request = anthropic::types::MessagesRequestBuilder::default()
         .model(config.model())
-        .max_tokens(64000 as usize)
+        .max_tokens(64000_usize)
         .messages(vec![anthropic::types::Message {
             role: anthropic::types::Role::User,
             content: vec![anthropic::types::ContentBlock::Text { text: prompt }],
