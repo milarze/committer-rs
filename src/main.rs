@@ -2,6 +2,20 @@ use clap::Command;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 
+use chrono::Local;
+use once_cell::sync::Lazy;
+use std::collections::HashMap;
+use std::fs::{self, OpenOptions};
+use std::io::Write;
+use std::sync::Mutex;
+use std::time::Instant;
+use tracing::{span, Subscriber};
+use tracing_subscriber::{registry::LookupSpan, Layer};
+
+// Global storage for span entry times (using once_cell for safe static initialization)
+static SPAN_TIMESTAMPS: Lazy<Mutex<HashMap<String, Instant>>> =
+    Lazy::new(|| Mutex::new(HashMap::new()));
+
 fn main() {
     setup_profiling();
     let matches = Command::new("committer-rs")
@@ -21,20 +35,6 @@ fn main() {
 }
 
 fn setup_profiling() {
-    use chrono::Local;
-    use once_cell::sync::Lazy;
-    use std::collections::HashMap;
-    use std::fs::{self, OpenOptions};
-    use std::io::Write;
-    use std::sync::Mutex;
-    use std::time::Instant;
-    use tracing::{span, Subscriber};
-    use tracing_subscriber::{registry::LookupSpan, Layer};
-
-    // Global storage for span entry times (using once_cell for safe static initialization)
-    static SPAN_TIMESTAMPS: Lazy<Mutex<HashMap<String, Instant>>> =
-        Lazy::new(|| Mutex::new(HashMap::new()));
-
     struct SpanTimingLayer {
         log_file_path: String,
     }
