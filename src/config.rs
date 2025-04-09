@@ -36,6 +36,9 @@ impl Config {
     }
 }
 
+use tracing::instrument;
+
+#[instrument(level = "info")]
 pub fn read_config() -> Config {
     let home_dir = match home::home_dir() {
         Some(dir) => dir,
