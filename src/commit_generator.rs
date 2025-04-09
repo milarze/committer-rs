@@ -1,3 +1,6 @@
+use tracing::instrument;
+
+#[instrument(level = "info", skip(diff, context, config))]
 pub async fn generate_commit_message(
     diff: String,
     context: Option<String>,
@@ -5,14 +8,13 @@ pub async fn generate_commit_message(
 ) -> Result<String, anyhow::Error> {
     let client = crate::clients::Claude::new(config.api_key());
 
+    let prompt = crate::prompt_generator::generate_prompt(diff.clone(), config.scopes(), context);
     let request = anthropic::types::MessagesRequestBuilder::default()
         .model(config.model())
         .max_tokens(64000 as usize)
         .messages(vec![anthropic::types::Message {
             role: anthropic::types::Role::User,
-            content: vec![anthropic::types::ContentBlock::Text {
-                text: crate::prompt_generator::generate_prompt(diff, config.scopes(), context),
-            }],
+            content: vec![anthropic::types::ContentBlock::Text { text: prompt }],
         }])
         .stream(false)
         .stop_sequences(vec!["\nHuman: ".to_string()])
