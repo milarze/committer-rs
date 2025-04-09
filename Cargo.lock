@@ -275,6 +275,7 @@ dependencies = [
  "clap",
  "git2",
  "home",
+ "once_cell",
  "serde",
  "serde_yaml",
  "tempfile",

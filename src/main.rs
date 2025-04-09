@@ -1,7 +1,5 @@
 use clap::Command;
-use tracing_subscriber::fmt::format::FmtSpan;
 use tracing_subscriber::layer::SubscriberExt;
-use tracing_subscriber::registry::LookupSpan;
 use tracing_subscriber::util::SubscriberInitExt;
 
 fn main() {
@@ -25,138 +23,129 @@ fn main() {
 fn setup_profiling() {
     use std::fs::{self, OpenOptions};
     use std::io::Write;
-    use std::path::PathBuf;
-    use std::sync::{Arc, Mutex};
+    use std::sync::Mutex;
+    use std::time::Instant;
+    use std::collections::HashMap;
     use chrono::Local;
     use tracing::{span, Subscriber};
-    use tracing_subscriber::Layer;
-
-    // CSV logger for span timings
-    struct CsvLoggerLayer {
-        log_file: Arc<Mutex<PathBuf>>,
+    use tracing_subscriber::{Layer, registry::LookupSpan};
+    use once_cell::sync::Lazy;
+    
+    // Global storage for span entry times (using once_cell for safe static initialization)
+    static SPAN_TIMESTAMPS: Lazy<Mutex<HashMap<String, Instant>>> = 
+        Lazy::new(|| Mutex::new(HashMap::new()));
+    
+    // Create a simpler layer that just logs to CSV
+    struct SpanTimingLayer {
+        log_file_path: String,
     }
-
-    impl CsvLoggerLayer {
-        fn new(log_file: PathBuf) -> Self {
-            // Print path for debugging
-            eprintln!("Setting up CSV logging to: {}", log_file.display());
-            
-            // Ensure parent directory exists
-            if let Some(parent) = log_file.parent() {
-                eprintln!("Creating directory: {}", parent.display());
+    
+    impl SpanTimingLayer {
+        fn new(log_file_path: String) -> Self {
+            // Create directory if needed
+            let path = std::path::Path::new(&log_file_path);
+            if let Some(parent) = path.parent() {
                 fs::create_dir_all(parent).expect("Failed to create log directory");
             }
             
-            // Write headers if file doesn't exist
-            if !log_file.exists() {
-                eprintln!("Creating new log file with headers");
+            // Create/check the file
+            if !path.exists() {
                 let mut file = OpenOptions::new()
                     .create(true)
                     .write(true)
-                    .truncate(true)
-                    .open(&log_file)
+                    .open(path)
                     .expect("Failed to create log file");
                 
                 writeln!(file, "timestamp,function,duration_us")
                     .expect("Failed to write CSV headers");
-            } else {
-                eprintln!("Log file already exists");
+                
+                eprintln!("Created performance log file: {}", log_file_path);
             }
             
-            CsvLoggerLayer {
-                log_file: Arc::new(Mutex::new(log_file)),
-            }
-        }
-        
-        fn log_span(&self, function: &str, duration: std::time::Duration) {
-            let timestamp = Local::now().format("%Y-%m-%d %H:%M:%S%.3f").to_string();
-            let duration_us = duration.as_micros();
-            let csv_line = format!("{},{},{}\n", timestamp, function, duration_us);
-            
-            eprintln!("Writing to CSV: {}", csv_line.trim());
-            
-            if let Ok(path) = self.log_file.lock() {
-                eprintln!("Got lock on path: {}", path.display());
-                match OpenOptions::new()
-                    .create(true)
-                    .append(true)
-                    .open(&*path)
-                {
-                    Ok(mut file) => {
-                        match file.write_all(csv_line.as_bytes()) {
-                            Ok(_) => eprintln!("Successfully wrote to file"),
-                            Err(e) => eprintln!("Error writing to file: {}", e),
-                        }
-                    },
-                    Err(e) => eprintln!("Error opening file: {}", e),
-                }
-            } else {
-                eprintln!("Failed to get lock on log file path");
-            }
+            SpanTimingLayer { log_file_path }
         }
     }
-
-    impl<S> Layer<S> for CsvLoggerLayer
+    
+    impl<S> Layer<S> for SpanTimingLayer 
     where
         S: Subscriber + for<'a> LookupSpan<'a>,
     {
-        fn on_close(&self, id: span::Id, ctx: tracing_subscriber::layer::Context<'_, S>) {
-            eprintln!("CsvLoggerLayer::on_close called");
+        fn on_new_span(&self, attrs: &span::Attributes<'_>, id: &span::Id, _ctx: tracing_subscriber::layer::Context<'_, S>) {
+            // When a new span is created, store its start time in our HashMap
+            let span_name = attrs.metadata().name().to_string();
+            let mut timestamps = SPAN_TIMESTAMPS.lock().unwrap();
+            let key = format!("{}-{:?}", span_name, id);
+            timestamps.insert(key, Instant::now());
             
-            // Get the span that's closing
-            if let Some(span) = ctx.span(&id) {
-                // Get the span name (function name)
-                let name = span.name().to_string();
-                eprintln!("Span closed: {}", name);
-                
-                // Get duration from the span's extensions
-                if let Some(duration) = span.extensions().get::<std::time::Duration>() {
-                    eprintln!("Duration found: {:?}", duration);
-                    // Log the span
-                    self.log_span(&name, *duration);
-                } else {
-                    eprintln!("No duration found in span extensions");
-                }
-            } else {
-                eprintln!("Span not found in context");
-            }
+            eprintln!("Span started: {} ({:?})", span_name, id);
         }
         
-        // Add an on_new_span method to verify our layer is working
-        fn on_new_span(
-            &self,
-            attrs: &tracing::span::Attributes<'_>,
-            _id: &span::Id,
-            _ctx: tracing_subscriber::layer::Context<'_, S>,
-        ) {
-            eprintln!("CsvLoggerLayer::on_new_span called for span: {}", attrs.metadata().name());
+        fn on_close(&self, id: span::Id, ctx: tracing_subscriber::layer::Context<'_, S>) {
+            // Get the span name
+            let span = match ctx.span(&id) {
+                Some(span) => span,
+                None => return,
+            };
+            
+            let span_name = span.name().to_string();
+            eprintln!("Span closed: {} ({:?})", span_name, id);
+            
+            // Get the start time from our HashMap
+            let key = format!("{}-{:?}", span_name, id);
+            let duration = {
+                let timestamps = SPAN_TIMESTAMPS.lock().unwrap();
+                if let Some(start_time) = timestamps.get(&key) {
+                    let elapsed = start_time.elapsed();
+                    eprintln!("Duration for {}: {:?}", span_name, elapsed);
+                    elapsed
+                } else {
+                    eprintln!("No start time found for span: {}", span_name);
+                    return;
+                }
+            };
+            
+            // Format and write to CSV
+            let timestamp = Local::now().format("%Y-%m-%d %H:%M:%S%.3f").to_string();
+            let csv_line = format!("{},{},{}\n", timestamp, span_name, duration.as_micros());
+            
+            // Write to file
+            match OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open(&self.log_file_path)
+            {
+                Ok(mut file) => {
+                    if let Err(e) = file.write_all(csv_line.as_bytes()) {
+                        eprintln!("Failed to write to log file: {}", e);
+                    } else {
+                        eprintln!("Wrote to CSV: {}", csv_line.trim());
+                    }
+                },
+                Err(e) => eprintln!("Failed to open log file: {}", e),
+            }
+            
+            // Clean up the entry
+            let mut timestamps = SPAN_TIMESTAMPS.lock().unwrap();
+            timestamps.remove(&key);
         }
     }
     
     // Create the log file path
     let home_dir = home::home_dir().expect("Unable to determine home directory");
     let log_file = home_dir.join(".committer-rs").join("performance.csv");
+    let log_file_path = log_file.to_string_lossy().to_string();
     
-    // Create our custom layer
-    let csv_layer = CsvLoggerLayer::new(log_file);
+    // Create our custom timing layer
+    let timing_layer = SpanTimingLayer::new(log_file_path);
     
-    // Print span info for the command that's about to run
-    eprintln!("About to run the command with instrumented spans");
-
-    // Register with the tracing system using the registry
-    // IMPORTANT: We need to use a timer to make sure spans have durations
+    // Set up the registry with our timing layer and standard console output
     let registry = tracing_subscriber::registry()
-        .with(tracing_subscriber::fmt::layer()
-            .with_timer(tracing_subscriber::fmt::time::uptime())
-            .with_span_events(FmtSpan::CLOSE)  // This is critical for capturing span close events
-            .with_target(false)
-            .with_thread_ids(true)
-            .pretty()) // Use pretty printing for better debug
-        .with(csv_layer) // Our custom CSV layer
+        .with(timing_layer)
+        .with(tracing_subscriber::fmt::layer().with_target(false))
         .with(tracing_subscriber::EnvFilter::new("info"));
     
     // Initialize the subscriber
     eprintln!("Initializing tracing subscriber");
     registry.init();
-    eprintln!("Tracing subscriber initialized");
+    eprintln!("Tracing subscriber initialized - span timings will be written to CSV");
 }
