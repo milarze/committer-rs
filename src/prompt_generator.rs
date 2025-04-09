@@ -1,17 +1,22 @@
+use tracing::instrument;
+
+#[instrument(level = "info", skip(diff, scopes, context))]
 pub fn generate_prompt(diff: String, scopes: Vec<String>, context: Option<String>) -> String {
-    let scopes = scopes.join("\n");
+    let scopes_str = scopes.join("\n");
+    
     if let Some(context) = context {
         commit_message_and_body_prompt()
             .replace("{{DIFF}}", &diff)
-            .replace("{{SCOPES}}", &scopes)
+            .replace("{{SCOPES}}", &scopes_str)
             .replace("{{CONTEXT}}", &context)
     } else {
         commit_message_only_prompt()
             .replace("{{DIFF}}", &diff)
-            .replace("{{SCOPES}}", &scopes)
+            .replace("{{SCOPES}}", &scopes_str)
     }
 }
 
+#[instrument(level = "info")]
 fn commit_message_only_prompt() -> String {
     "
     You are an experienced software developer tasked with creating a commit message based on a git diff. Your goal is to produce a clear, concise, and informative commit message.
@@ -66,6 +71,7 @@ fn commit_message_only_prompt() -> String {
     ".to_string()
 }
 
+#[instrument(level = "info")]
 fn commit_message_and_body_prompt() -> String {
     "
     You are an experienced software developer tasked with creating a commit message based on a git diff. Your goal is to produce a clear, concise, and informative commit message.
