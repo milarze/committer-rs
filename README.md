@@ -13,7 +13,7 @@ A Rust implementation of [committer](https://github.com/Hyper-Unearthing/committ
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/committer-rs.git
+git clone https://github.com/milarze/committer-rs.git
 cd committer-rs
 
 # Build the project
