@@ -2,6 +2,9 @@
 name = "committer-rs"
 version = "0.1.0"
 edition = "2021"
+description = "A tool to that commits changes to git repositories using LLM generated commit messages."
+license = "MIT"
+license-file = "LICENSE"
 
 [dependencies]
 anthropic = "0.0.8"
