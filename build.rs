@@ -5,17 +5,9 @@ use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
-const HF_FILES_URL: &str =
-    "https://huggingface.co/JosineyJr/generate-conventional-commit-messages/resolve/main";
+const HF_FILES_URL: &str = "https://huggingface.co/usvsnsp/code-vs-nl/resolve/main/";
 
-const MODEL_FILES: &[&str] = &[
-    "config.json",
-    "pytorch_model.bin",
-    "tokenizer.json",
-    "tokenizer_config.json",
-    "vocab.json",
-    "merges.txt",
-];
+const MODEL_FILES: &[&str] = &["config.json", "tokenizer.json", "model.safetensors"];
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let out_dir = env::var("OUT_DIR").context("Failed to get OUT_DIR")?;

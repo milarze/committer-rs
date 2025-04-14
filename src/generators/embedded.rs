@@ -5,14 +5,13 @@ use std::io::Cursor;
 use std::path::PathBuf;
 use tokenizers::Tokenizer;
 // Include model files directly in the binary
-const MODEL_BIN: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/model/pytorch_model.bin"));
-const CONFIG_JSON: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/model/config.json"));
-const TOKENIZER_JSON: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/model/tokenizer.json"));
-const VOCAB_JSON: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/model/vocab.json"));
-const MERGES_TXT: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/model/merges.txt"));
+const MODEL_SAFE_TENSORS: &[u8] =
+    include_bytes!(concat!(env!("OUT_DIR"), "/model/model.safetensors"));
+const CONFIG_JSON: &str = include_str!(concat!(env!("OUT_DIR"), "/model/config.json"));
+const TOKENIZER_JSON: &str = include_str!(concat!(env!("OUT_DIR"), "/model/tokenizer.json"));
 
 struct CommitGenerator {
-    model: GPT2Model,
+    model: candle_transformers::models::bert::BertModel,
     tokenizer: Tokenizer,
     device: Device,
 }
