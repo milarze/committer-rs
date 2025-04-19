@@ -21,7 +21,7 @@ fn generate_from_local(
     prompt: String,
     config: crate::config::Config,
 ) -> Result<String, anyhow::Error> {
-    let generator = crate::generators::embedded::CommitGenerator::new()?;
+    let mut generator = crate::generators::codet5::CodeT5Generator::new()?;
     let result = generator.generate(&prompt, config.max_tokens())?;
     Ok(result)
 }

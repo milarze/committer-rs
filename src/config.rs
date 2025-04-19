@@ -5,7 +5,6 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Config {
-    #[serde(default = "Option::None")]
     api_key: Option<String>,
     #[serde(default = "get_default_model")]
     model: String,
