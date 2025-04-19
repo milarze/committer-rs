@@ -1,11 +1,9 @@
 use anyhow::{Context, Result};
-use curl::easy::Easy;
 use std::env;
 use std::fs;
-use std::io::Write;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
-const HF_FILES_URL: &str = "https://huggingface.co/usvsnsp/code-vs-nl/resolve/main/";
+const HF_MODEL_ID: &str = "usvsnsp/code-vs-nl";
 
 const MODEL_FILES: &[&str] = &["config.json", "tokenizer.json", "model.safetensors"];
 
@@ -15,44 +13,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     fs::create_dir_all(&model_dir).context("Failed to create model directory")?;
 
-    for &file in MODEL_FILES {
-        let target_path = model_dir.join(file);
+    let api = hf_hub::api::sync::Api::new()?;
+    let repo = api.repo(hf_hub::Repo::new(
+        HF_MODEL_ID.to_string(),
+        hf_hub::RepoType::Model,
+    ));
 
-        // Skip if file already exists (for faster rebuilds)
-        if target_path.exists() {
-            println!("File already exists: {}", file);
-            continue;
-        }
-
-        println!("cargo:warning=Downloading: {}", file);
-        download_file(&format!("{}/{}", HF_FILES_URL, file), &target_path)
-            .with_context(|| format!("Failed to download {}", file))?;
+    for file in MODEL_FILES {
+        let src_path = repo.get(file)?;
+        let dest_path = model_dir.join(file);
+        fs::copy(src_path, &dest_path)
+            .with_context(|| format!("Failed to copy {} to {}", file, dest_path.display()))?;
     }
 
     println!("cargo:rerun-if-changed=build.rs");
-    Ok(())
-}
-
-fn download_file(url: &str, dest: &PathBuf) -> Result<()> {
-    // Create the output file
-    let mut file = fs::File::create(dest)
-        .with_context(|| format!("Failed to create file: {}", dest.display()))?;
-
-    // Initialize a curl handler
-    let mut easy = Easy::new();
-    easy.url(url).context("Failed to set URL")?;
-    easy.follow_location(true)
-        .context("Failed to enable redirect following")?;
-
-    // Download the file
-    let mut transfer = easy.transfer();
-    transfer.write_function(|data| {
-        file.write_all(data)
-            .map_err(|_| curl::easy::WriteError::Pause)?;
-        Ok(data.len())
-    })?;
-
-    transfer.perform().context("Failed to perform transfer")?;
-
     Ok(())
 }

@@ -5,18 +5,21 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Config {
+    #[serde(default = "Option::None")]
     api_key: Option<String>,
     #[serde(default = "get_default_model")]
     model: String,
+    #[serde(default = "Vec::new")]
     scopes: Vec<String>,
+    #[serde(default = "bool::default")]
+    use_local: bool,
+    #[serde(default = "max_tokens_default")]
+    max_tokens: usize,
 }
 
 impl Config {
-    pub fn api_key(&self) -> String {
-        self.api_key
-            .clone()
-            .or_else(|| env::var("ANTHROPIC_API_KEY").ok())
-            .expect("Unable to retrieve API key")
+    pub fn api_key(&self) -> Option<String> {
+        self.api_key.clone()
     }
 
     pub fn model(&self) -> String {
@@ -27,12 +30,22 @@ impl Config {
         self.scopes.clone()
     }
 
+    pub fn use_local(&self) -> bool {
+        self.use_local
+    }
+
     pub fn build_default() -> Self {
         Self {
             api_key: env::var("ANTHROPIC_API_KEY").ok(),
             model: get_default_model(),
             scopes: vec![],
+            use_local: false,
+            max_tokens: max_tokens_default(),
         }
+    }
+
+    pub fn max_tokens(&self) -> usize {
+        self.max_tokens
     }
 }
 
@@ -58,4 +71,8 @@ pub fn read_config() -> Config {
 
 fn get_default_model() -> String {
     "claude-3-7-sonnet-20250219".to_string()
+}
+
+fn max_tokens_default() -> usize {
+    1000
 }

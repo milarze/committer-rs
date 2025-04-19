@@ -1,14 +1,12 @@
 use tracing::instrument;
 
-#[instrument(level = "info", skip(diff, context, config))]
+#[instrument(level = "info", skip(prompt, config))]
 pub async fn generate_commit_message(
-    diff: String,
-    context: Option<String>,
+    prompt: String,
     config: crate::config::Config,
 ) -> Result<String, anyhow::Error> {
-    let client = crate::clients::Claude::new(config.api_key());
+    let client = crate::clients::Claude::new(config.api_key().expect("API key not found"));
 
-    let prompt = crate::prompt_generator::generate_prompt(diff.clone(), config.scopes(), context);
     let request = anthropic::types::MessagesRequestBuilder::default()
         .model(config.model())
         .max_tokens(64000_usize)
