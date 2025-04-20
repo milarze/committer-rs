@@ -73,5 +73,5 @@ fn get_default_model() -> String {
 }
 
 fn max_tokens_default() -> usize {
-    1000
+    512
 }

@@ -1,6 +1,6 @@
 use std::{io::Write as _, str::FromStr as _};
 
-use anyhow::Result;
+use anyhow::{Error, Result};
 use candle_core::{DType, Device, Tensor};
 use candle_nn::VarBuilder;
 use candle_transformers::{
@@ -22,15 +22,15 @@ impl CodeT5Generator {
 
         let config: Config = serde_json::from_str(crate::generators::embedded::CONFIG_JSON)?;
 
-        let tokenizer = Tokenizer::from_str(crate::generators::embedded::TOKENIZER_JSON)
-            .map_err(|e| anyhow::anyhow!("Failed to load tokenizer: {}", e))?;
+        let tokenizer =
+            Tokenizer::from_str(crate::generators::embedded::TOKENIZER_JSON).map_err(Error::msg)?;
 
         let vb = VarBuilder::from_buffered_safetensors(
             crate::generators::embedded::MODEL_SAFE_TENSORS.to_vec(),
             DType::F32,
             &device,
         )
-        .map_err(|e| anyhow::anyhow!("Failed to create VarBuilder: {}", e))?;
+        .map_err(Error::msg)?;
 
         let model = T5ForConditionalGeneration::load(vb, &config)?;
 
@@ -47,31 +47,26 @@ impl CodeT5Generator {
             .tokenizer
             .with_padding(None)
             .with_truncation(None)
-            .map_err(|e| anyhow::anyhow!("Failed to set padding and truncation: {}", e))?;
+            .map_err(Error::msg)?;
 
-        let input_ids = tokenizer
+        let tokens = tokenizer
             .encode(prompt, true)
-            .map_err(|e| anyhow::anyhow!("Tokenizer encode error: {}", e))?
+            .map_err(Error::msg)?
             .get_ids()
             .to_vec();
 
-        let input_token_ids = Tensor::new(input_ids, &self.device)?.unsqueeze(0)?;
+        let input_token_ids = Tensor::new(&tokens[..], &self.device)?.unsqueeze(0)?;
 
         let mut output_token_ids = [self
             .config
             .decoder_start_token_id
             .unwrap_or(self.config.pad_token_id) as u32]
         .to_vec();
-        output_token_ids.extend(
-            tokenizer
-                .encode("".to_string(), false)
-                .map_err(|e| anyhow::anyhow!("Tokenizer encode error: {}", e))?
-                .get_ids()
-                .to_vec(),
-        );
+
         let mut logits_processor = LogitsProcessor::new(299792458, None, None);
         let encoder_output = self.model.encode(&input_token_ids)?;
         let start = std::time::Instant::now();
+
         let mut results = Vec::new();
         for index in 0.. {
             if output_token_ids.len() > max_length {
@@ -91,7 +86,7 @@ impl CodeT5Generator {
                 let start_at = output_token_ids.len().saturating_sub(64);
                 candle_transformers::utils::apply_repeat_penalty(
                     &logits,
-                    1.1,
+                    1.9,
                     &output_token_ids[start_at..],
                 )?
             };
