@@ -6,29 +6,22 @@ pub async fn generate_commit_message(
     context: Option<String>,
     config: crate::config::Config,
 ) -> Result<String, anyhow::Error> {
-    let client = crate::clients::Claude::new(config.api_key());
-
     let prompt = crate::prompt_generator::generate_prompt(diff.clone(), config.scopes(), context);
-    let request = anthropic::types::MessagesRequestBuilder::default()
-        .model(config.model())
-        .max_tokens(64000_usize)
-        .messages(vec![anthropic::types::Message {
-            role: anthropic::types::Role::User,
-            content: vec![anthropic::types::ContentBlock::Text { text: prompt }],
-        }])
-        .stream(false)
-        .stop_sequences(vec!["\nHuman: ".to_string()])
-        .build()
-        .unwrap();
+    return if config.use_local() {
+        generate_from_local(prompt, config)
+            .map_err(|e| anyhow::anyhow!("Error generating commit message: {:?}", e))
+    } else {
+        crate::generators::remote::generate_commit_message(prompt, config)
+            .await
+            .map_err(|e| anyhow::anyhow!("Error generating commit message: {:?}", e))
+    };
+}
 
-    let response = client.client.messages(request).await?;
-    let content = response
-        .content
-        .iter()
-        .map(|c| match c {
-            anthropic::types::ContentBlock::Text { text } => text.clone(),
-            _ => "".to_string(),
-        })
-        .collect();
-    Ok(content)
+fn generate_from_local(
+    prompt: String,
+    config: crate::config::Config,
+) -> Result<String, anyhow::Error> {
+    let mut generator = crate::generators::codet5::CodeT5Generator::new()?;
+    let result = generator.generate(&prompt, config.max_tokens())?;
+    Ok(result)
 }
